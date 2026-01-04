@@ -16,25 +16,22 @@ export default function Dashboard() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      axios.get(`${BASE}/api/metrics/summary`)
-        .then(res => {
-          setSummary(res.data);
-          setBackendOnline(true);
-        })
-        .catch(() => setBackendOnline(false));
+      axios.get(`${BASE}/api/metrics/summary`).then(res => {
+        setSummary({
+          totalRequests: res.data.totalRequests ?? 0,
+          avgResponseTime: res.data.avgResponseTime ?? 0,
+          errorRate: res.data.errorRate ?? 0
+        });
+        setBackendOnline(true);
+      }).catch(() => setBackendOnline(false));
 
       axios.get(`${BASE}/api/metrics/routes`)
-        .then(res => setRoutes(res.data))
+        .then(res => setRoutes(Array.isArray(res.data) ? res.data : []))
         .catch(() => setRoutes([]));
 
-      axios.get(`${BASE}/api/logs`)
-        .then(res => setLogs(res.data.logs || []))
-        .catch(() => setLogs([]));
-
       axios.get(`${BASE}/api/metrics/export?type=json`)
-        .then(res => setLogs(res.data))
+        .then(res => setLogs(Array.isArray(res.data) ? res.data : []))
         .catch(() => setLogs([]));
-
     }, 3000);
 
     return () => clearInterval(interval);
@@ -65,9 +62,15 @@ export default function Dashboard() {
 
       {/* Summary metrics */}
       <div className="grid grid-cols-3 gap-4">
-        <SummaryCard title="Total API Calls" value={summary.totalRequests || 0} />
-        <SummaryCard title="Avg Response Time" value={(summary.avgResponseTime || 0) + " ms"} />
-        <SummaryCard title="Error Rate" value={(summary.errorRate || 0).toFixed(1) + "%"} />
+        <SummaryCard title="Total API Calls" value={summary.totalRequests ?? 0} />
+        <SummaryCard
+          title="Avg Response Time"
+          value={summary.avgResponseTime != null ? summary.avgResponseTime.toFixed(1) + " ms" : "0 ms"}
+        />
+        <SummaryCard
+          title="Error Rate"
+          value={summary.errorRate != null ? summary.errorRate.toFixed(1) + "%" : "0%"}
+        />
       </div>
 
       {/* API performance chart */}

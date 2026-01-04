@@ -1,28 +1,17 @@
-// server/db.js
-import Database from 'better-sqlite3';
+import Database from "better-sqlite3";
 
-const db = new Database('metrics.db');
+const db_metrics = new Database("C:\\Users\\royal\\Documents\\Daily-Plan-Projects\\backend-metrics\\metrics.db");
 
-// Ensure tables exist
+// Create only api_metrics table
 db.exec(`
-CREATE TABLE IF NOT EXISTS commits (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  timestamp TEXT,
-  push_success INTEGER
-);
-
-CREATE TABLE IF NOT EXISTS analytics (
+CREATE TABLE IF NOT EXISTS api_metrics (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   route TEXT,
   method TEXT,
   status INTEGER,
   response_time INTEGER,
   is_error INTEGER,
-  timestamp TEXT,
-  action TEXT,
-  files_changed INTEGER,
-  lines_added INTEGER,
-  lines_removed INTEGER
+  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 `);
 
