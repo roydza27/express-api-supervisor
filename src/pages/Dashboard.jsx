@@ -5,81 +5,115 @@ import MetricsChart from "../components/MetricsChart";
 import RouteTable from "../components/RouteTable";
 
 export default function Dashboard() {
-  const [port, setPort] = useState(3002);
+  const [port] = useState(3001); // supervising RepoSense backend
   const [backendOnline, setBackendOnline] = useState(false);
-  const [summary, setSummary] = useState({});
-  const [routes, setRoutes] = useState([]);
-  const [chartData, setChartData] = useState([]);
-  const [logs, setLogs] = useState([]);
 
-  const BASE = `http://localhost:3001`;
+  const [summary, setSummary] = useState({
+    totalRequests: 0,
+    avgResponseTime: 0,
+    errorRate: 0,
+  });
+
+  const [routes, setRoutes] = useState([]);
+  const [logs, setLogs] = useState([]);
+  const [chartData, setChartData] = useState([]);
+
+  const BASE = `http://localhost:${port}`;
+
+  // Noise filter helper
+  const isNoise = (route) =>
+    !route || // null/undefined safety
+    route.includes("favicon") ||
+    route.includes("/metrics") ||
+    route.startsWith("/api/metrics");
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      axios.get(`${BASE}/api/metrics/summary`).then(res => {
+    const fetchMetrics = async () => {
+      // Check summary
+      try {
+        const res1 = await axios.get(`${BASE}/api/metrics/summary`);
         setSummary({
-          totalRequests: res.data.totalRequests ?? 0,
-          avgResponseTime: res.data.avgResponseTime ?? 0,
-          errorRate: res.data.errorRate ?? 0
+          totalRequests: res1.data.totalRequests ?? 0,
+          avgResponseTime: res1.data.avgResponseTime ?? 0,
+          errorRate: res1.data.errorRate ?? 0,
         });
         setBackendOnline(true);
-      }).catch(() => setBackendOnline(false));
+      } catch {
+        setBackendOnline(false);
+      }
 
-      axios.get(`${BASE}/api/metrics/routes`)
-        .then(res => setRoutes(Array.isArray(res.data) ? res.data : []))
-        .catch(() => setRoutes([]));
+      // Check grouped route stats
+      try {
+        const res2 = await axios.get(`${BASE}/api/metrics/routes`);
+        const data = Array.isArray(res2.data) ? res2.data : [];
+        const filtered = data.filter((r) => !isNoise(r.route));
+        setRoutes(filtered);
+      } catch {
+        setRoutes([]);
+      }
 
-      axios.get(`${BASE}/api/metrics/export?type=json`)
-        .then(res => setLogs(Array.isArray(res.data) ? res.data : []))
-        .catch(() => setLogs([]));
-    }, 3000);
+      // Get raw logs for UI (not overwriting summary)
+      try {
+        const res3 = await axios.get(`${BASE}/api/metrics/export?type=json`);
+        const data = Array.isArray(res3.data) ? res3.data : [];
+        const filteredLogs = data.filter((m) => !isNoise(m.route));
+        setLogs(filteredLogs);
+      } catch {
+        setLogs([]);
+      }
+    };
 
+    // First call immediately
+    fetchMetrics();
+
+    // Then repeat every 3 seconds
+    const interval = setInterval(fetchMetrics, 3000);
     return () => clearInterval(interval);
   }, [port]);
 
+  // Build chart data whenever route stats update
   useEffect(() => {
-    if (Array.isArray(routes)) {
-      setChartData(routes.map(r => ({
+    setChartData(
+      routes.map((r) => ({
         route: r.route,
         responseTime: r.avgResponseTime,
-        errorPercent: r.errorPercent,
-      })));
-    }
+        hits: r.hits ?? r.requestCount ?? 0,
+        errorPercent: r.errorPercent ?? r.errorPercent ?? 0,
+        isSlow: r.isSlow ?? r.isSlow ?? false,
+      }))
+    );
   }, [routes]);
 
   return (
     <div className="p-6 space-y-6">
-      {/* Port switcher */}
+
+      {/* Backend status */}
       <div className="flex gap-2 items-center">
-        {/* <input
-          type="number"
-          className="border p-2 rounded-xl w-24"
-          value={port}
-          onChange={e => setPort(e.target.value)}
-        /> */}
-        <span className="text-sm">{backendOnline ? "Backend Connected" : "Backend Offline"}</span>
+        <span className="text-sm">
+          {backendOnline ? "Backend Connected" : "Backend Offline"}
+        </span>
       </div>
 
-      {/* Summary metrics */}
+      {/* Summary cards */}
       <div className="grid grid-cols-3 gap-4">
         <SummaryCard title="Total API Calls" value={summary.totalRequests ?? 0} />
         <SummaryCard
           title="Avg Response Time"
-          value={summary.avgResponseTime != null ? summary.avgResponseTime.toFixed(1) + " ms" : "0 ms"}
+          value={(summary.avgResponseTime ?? 0).toFixed(1) + " ms"}
         />
         <SummaryCard
           title="Error Rate"
-          value={summary.errorRate != null ? summary.errorRate.toFixed(1) + "%" : "0%"}
+          value={(summary.errorRate ?? 0).toFixed(1) + "%"}
         />
       </div>
 
-      {/* API performance chart */}
+      {/* Chart */}
       <MetricsChart data={chartData} />
 
-      {/* Route performance table */}
+      {/* Table */}
       <RouteTable routes={routes} />
 
-      {/* Recent API call + errors log */}
+      {/* Logs */}
       <div className="bg-black/5 p-4 rounded-2xl border max-h-60 overflow-auto text-sm">
         <h3 className="font-semibold mb-2">Recent API Logs & Errors</h3>
         {logs.length === 0 && "No logs yet..."}
@@ -90,6 +124,7 @@ export default function Dashboard() {
           </div>
         ))}
       </div>
+
     </div>
   );
 }

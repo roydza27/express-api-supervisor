@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 
-const db_metrics = new Database("C:\\Users\\royal\\Documents\\Daily-Plan-Projects\\backend-metrics\\metrics.db");
+const db = new Database("C:\\Users\\royal\\Documents\\Daily-Plan-Projects\\backend-metrics\\metrics.db");
 
 // Create only api_metrics table
 db.exec(`
@@ -14,5 +14,6 @@ CREATE TABLE IF NOT EXISTS api_metrics (
   timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 `);
+
 
 export default db;
